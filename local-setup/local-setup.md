@@ -82,6 +82,30 @@ If you wish to stop the OCM-Gear and delete the kind cluster, you have to run
 it is permanently stored on the host machine. To also clear the delivery-db
 storage, you have to delete the `/var/delivery-db` directory.
 
+## Known Limitations (macOS / Darwin)
+
+The following quirks are known when running `make kind-up` on macOS:
+
+- **`bitnami/os-shell` image unavailable**: The Bitnami PostgreSQL chart's built-in
+  `volumePermissions` init container pulls `docker.io/bitnami/os-shell` from Docker
+  Hub, which is not reliably available. The local setup replaces it with a custom
+  init container using the already-mirrored Gardener postgres image instead.
+
+- **Ingress required for chart version `0.1212.0`**: The `delivery-service` and
+  `delivery-dashboard` charts at this version use Kubernetes `Ingress` resources.
+  The local values files provide the required `ingress.hosts` so the templates render
+  correctly. Newer chart versions (≥ `0.1331.0`) use Gateway API `HTTPRoute` instead.
+
+- **`crypto.mappings` must be empty when disabled**: The installed `odg` package
+  version uses dacite union resolution that fails to deserialize `SharedCfgLocalReference`
+  refs in crypto mappings. Since crypto is disabled by default, `mappings: []` avoids
+  constructing any mapping objects at all.
+
+- **`ocm_repo_mappings` uses simple format**: The installed `lookups.py` uses
+  `cnudie.retrieve.OcmRepositoryMappingEntry` which only supports `repository` and
+  `prefix` (singular). The virtual `type: virtual` entry and `prefixes` (plural) from
+  the newer codebase are not supported.
+
 ## Extensions
 OCM-Gear extensions can be dynamically added to your installation. However, some
 extensions require the presence of another extension or extra configuration to
