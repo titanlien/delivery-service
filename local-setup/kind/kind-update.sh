@@ -75,5 +75,5 @@ helm upgrade -i extensions oci://${EXTENSIONS_CHART%:*} \
     --values ${CHART}/values-extensions.yaml
 
 # port-forward to the new delivery-service pods
-lsof -i tcp:5000 | grep kubectl | awk 'NR!=1 {print $2}' | xargs kill
+lsof -i tcp:5000 | grep kubectl | awk 'NR!=1 {print $2}' | xargs kill || true
 kubectl port-forward service/delivery-service 5000:8080 > /dev/null &
