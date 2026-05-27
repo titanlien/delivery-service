@@ -91,20 +91,17 @@ The following quirks are known when running `make kind-up` on macOS:
   Hub, which is not reliably available. The local setup replaces it with a custom
   init container using the already-mirrored Gardener postgres image instead.
 
-- **Ingress required for chart version `0.1212.0`**: The `delivery-service` and
-  `delivery-dashboard` charts at this version use Kubernetes `Ingress` resources.
-  The local values files provide the required `ingress.hosts` so the templates render
-  correctly. Newer chart versions (≥ `0.1331.0`) use Gateway API `HTTPRoute` instead.
-
 - **`crypto.mappings` must be empty when disabled**: The installed `odg` package
-  version uses dacite union resolution that fails to deserialize `SharedCfgLocalReference`
-  refs in crypto mappings. Since crypto is disabled by default, `mappings: []` avoids
-  constructing any mapping objects at all.
+  uses dacite union resolution that tries `SharedCfgGitHubReference` (which requires
+  `repository`) before `SharedCfgLocalReference` when deserializing crypto mapping
+  refs. Since crypto is disabled by default, `mappings: []` avoids constructing any
+  mapping objects at all.
 
-- **`ocm_repo_mappings` uses simple format**: The installed `lookups.py` uses
-  `cnudie.retrieve.OcmRepositoryMappingEntry` which only supports `repository` and
-  `prefix` (singular). The virtual `type: virtual` entry and `prefixes` (plural) from
-  the newer codebase are not supported.
+- **Gateway API required (≥ `0.1331.0`)**: Chart versions `0.1331.0` and above use
+  Kubernetes Gateway API `HTTPRoute` resources instead of `Ingress`. The setup
+  installs [Envoy Gateway](https://gateway.envoyproxy.io/) and creates a `Gateway`
+  resource named `open-delivery-gear` to satisfy the `parentRef` in the `HTTPRoute`
+  templates.
 
 ## Extensions
 OCM-Gear extensions can be dynamically added to your installation. However, some

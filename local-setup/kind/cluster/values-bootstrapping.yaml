@@ -81,8 +81,12 @@ findings:
     default_scope: single
 
 ocm_repo_mappings:
+  - type: virtual
+    name: <auto>
+    selectors:
+      - version_filter_overwrite: semver_releases
   - repository: ghcr.io/open-component-model/ocm
-    prefix: ocm.software/ocmcli
+    prefixes: ocm.software/ocmcli
   - repository: europe-docker.pkg.dev/gardener-project/releases
   - repository: europe-docker.pkg.dev/gardener-project/snapshots
 

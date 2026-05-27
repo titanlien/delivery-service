@@ -35,16 +35,45 @@ NAMESPACE="${NAMESPACE:-delivery}"
 kubectl create ns $NAMESPACE
 kubectl config set-context --current --namespace=$NAMESPACE
 
+# Resolve chart references:
+# - delivery-service, bootstrapping and extensions come from the delivery-service component
+#   (which is versioned independently and more up-to-date than the top-level ocm-gear component)
+# - delivery-dashboard and postgresql come from the top-level ocm-gear component
 OCM_GEAR_COMPONENT_REF="europe-docker.pkg.dev/gardener-project/releases//ocm.software/ocm-gear"
+OCM_GEAR_DS_COMPONENT_REF="europe-docker.pkg.dev/gardener-project/releases//ocm.software/ocm-gear/delivery-service"
 OCM_GEAR_VERSION="${OCM_GEAR_VERSION:-$(ocm show versions ${OCM_GEAR_COMPONENT_REF} | tail -1)}"
+OCM_GEAR_DS_VERSION="${OCM_GEAR_DS_VERSION:-$(ocm show versions ${OCM_GEAR_DS_COMPONENT_REF} | tail -1)}"
 COMPONENT_DESCRIPTORS=$(ocm get cv ${OCM_GEAR_COMPONENT_REF}:${OCM_GEAR_VERSION} -o yaml -r)
-echo "Installing OCM-Gear with version $OCM_GEAR_VERSION"
+DS_COMPONENT_DESCRIPTORS=$(ocm get cv ${OCM_GEAR_DS_COMPONENT_REF}:${OCM_GEAR_DS_VERSION} -o yaml -r)
+echo "Installing OCM-Gear with version $OCM_GEAR_VERSION (delivery-service: $OCM_GEAR_DS_VERSION)"
 
-BOOTSTRAPPING_CHART=$(echo "${COMPONENT_DESCRIPTORS}" | yq eval '.component.resources.[] | select(.name == "bootstrapping" and .type | test("helmChart")) | .access.imageReference')
-DELIVERY_SERVICE_CHART=$(echo "${COMPONENT_DESCRIPTORS}" | yq eval '.component.resources.[] | select(.name == "delivery-service" and .type | test("helmChart")) | .access.imageReference')
+BOOTSTRAPPING_CHART=$(echo "${DS_COMPONENT_DESCRIPTORS}" | yq eval '.component.resources.[] | select(.name == "bootstrapping" and .type | test("helmChart")) | .access.imageReference')
+DELIVERY_SERVICE_CHART=$(echo "${DS_COMPONENT_DESCRIPTORS}" | yq eval '.component.resources.[] | select(.name == "delivery-service" and .type | test("helmChart")) | .access.imageReference')
 DELIVERY_DASHBOARD_CHART=$(echo "${COMPONENT_DESCRIPTORS}" | yq eval '.component.resources.[] | select(.name == "delivery-dashboard" and .type | test("helmChart")) | .access.imageReference')
-EXTENSIONS_CHART=$(echo "${COMPONENT_DESCRIPTORS}" | yq eval '.component.resources.[] | select(.name == "extensions" and .type | test("helmChart")) | .access.imageReference')
+EXTENSIONS_CHART=$(echo "${DS_COMPONENT_DESCRIPTORS}" | yq eval '.component.resources.[] | select(.name == "extensions" and .type | test("helmChart")) | .access.imageReference')
 DELIVERY_DATABASE_CHART=$(echo "${COMPONENT_DESCRIPTORS}" | yq eval '.component.resources.[] | select(.name == "postgresql" and .type | test("helmChart")) | .access.imageReference')
+
+echo ">>> Installing Gateway API CRDs and Envoy Gateway"
+ENVOY_GATEWAY_VERSION="1.3.2"
+helm upgrade -i envoy-gateway oci://docker.io/envoyproxy/gateway-helm \
+    --version ${ENVOY_GATEWAY_VERSION} \
+    --namespace envoy-gateway-system \
+    --create-namespace \
+    --wait
+# Create a Gateway resource that the delivery-service and delivery-dashboard HTTPRoutes reference
+kubectl apply -f - <<EOF
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: open-delivery-gear
+  namespace: ${NAMESPACE}
+spec:
+  gatewayClassName: eg
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+EOF
 
 echo ">>> Installing bootstrapping chart from ${BOOTSTRAPPING_CHART}"
 helm upgrade -i bootstrapping oci://${BOOTSTRAPPING_CHART%:*} \
